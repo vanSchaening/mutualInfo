@@ -1,0 +1,10 @@
+hsa-miR-381
+hsa-miR-382
+hsa-miR-383
+hsa-miR-304
+hsa-miR-409
+hsa-miR-410
+hsa-miR-411
+hsa-miR-412
+hsa-miR-421
+hsa-miR-425
