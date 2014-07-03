@@ -1,3 +1,4 @@
+# -------- Imports -------------------------------------------------------------
 from itertools import izip
 import cPickle as pickle
 from scipy.stats.kde import gaussian_kde
@@ -7,6 +8,8 @@ from pprint import pprint
 
 # -------- Function Definitions ------------------------------------------------
 
+# the two expression files (mir and rna) will rarely have exactly the same
+# samples, so we filter both files to contain only the samples shared by both
 def filterExpressionFiles(mirfile,rnafile):
     mir, rna = open(mirfile, 'r'), open(rnafile, 'r')
     mir_samples = getSampleNames(mir)
@@ -28,21 +31,14 @@ def filterExpressionFiles(mirfile,rnafile):
     mir_out.write("\t".join([mir_samples[i] for i in mir_indices])+"\n")
     rna_out.write("\t".join([rna_samples[i] for i in rna_indices])+"\n")
 
-    for line in mir:
-        line = line.strip().split()
-        out = [line[0]]
-        out.extend([ line[i+1] for i in mir_indices ])
-        mir_out.write("\t".join(out)+"\n")
-    mir.close()
-    mir_out.close()
-    for line in rna:
-        line = line.split()
-        out = [line[0]]
-        out.extend([ line[i+1] for i in rna_indices ])
-        rna_out.write("\t".join(out)+"\n")
-    rna.close()
-    rna_out.close()
-
+    for f,ids,o in izip([mir, rna],[mir_indices,rna_indices],[mir_out,rna_out]):
+        for line in f:
+            line = line.strip().split()
+            out = [line[0]]
+            out.extend([ line[i+1] for i in ids ])
+            o.write("\t".join(out)+"\n")
+        f.close()
+        o.close()
     return mir_file, rna_file
 
 # extract a dictionary from a .pkl
