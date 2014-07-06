@@ -197,8 +197,11 @@ tfdict = unpickle(files.rnapkl)
 mirdict = trimInteractions(mtflist,
                            unpickle(files.mirpkl))
 
-# Find double interactions
+# Find double interactions and write them to a pickle
 double_interactions = getDoubleInteractions(mtflist,mirdict,tfdict)
+d = open(files.outdir + "double_interactions.pkl", 'w')
+pickle.dump(double_interactions, d)
+d.close()
 
 # miRNA and mRNA expression matrices
 mirfile, rnafile = filterExpressionFiles(files.mirdata, files.rnadata)
