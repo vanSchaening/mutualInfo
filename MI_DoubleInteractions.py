@@ -1,10 +1,28 @@
+# -------- Argument Parsing ----------------------------------------------------
+# If you're reading through this code, skip this part. It's just storing file-
+# names in the relevant variables.
+from optparse import OptionParser
+parser = OptionParser()
+parser.add_option("--mirlist",dest="mirlist",
+                  help="plain text file with the name of a miRNA in each line.")
+parser.add_option("--mirpkl",dest="mirpkl",
+                  help="pickle with {miR:target} interactions.")
+parser.add_option("--rnapkl",dest="rnapkl",
+                  help="pickle with {TF:target} interactions for a specific tissue.")
+parser.add_option("--mirdata",dest="mirdata",
+                  help="expression matrix for individual miRNAs (not families) in a tissue. Obtained from TCGA data, with the samples labelled using TCGA barcodes.")
+parser.add_option("--rnadata",dest="rnadata",
+                  help="expression matrix for RNA transcripts in a specific tissue. In the same format as <mirdata>.")
+parser.add_option("--outdir", dest="outdir",
+                  help="Directory where result files will be written.")
+(files, args) = parser.parse_args()
+
+
 # -------- Imports -------------------------------------------------------------
 from itertools import izip
 import cPickle as pickle
 from scipy.stats.kde import gaussian_kde
 from scipy.stats import entropy, scoreatpercentile
-from math import log
-from pprint import pprint
 
 # -------- Function Definitions ------------------------------------------------
 
@@ -128,6 +146,9 @@ def getExpressionData(mirfile, rnafile, interactions):
             targets[line[0]] = map(float,line[1:])
     return targets
 
+# If the expression values for a compound consists entirely of zeroes, it will 
+# be impossible to use gaussian_kde to infer its probability distribution.
+# Use this function to filter out those instances
 def notExpressed(expr):
     if len(set(expr)) == 1:
         return True
@@ -144,17 +165,11 @@ def getOutlierCoexpression(outlier_ids,exp,id_map):
     return top_rna, bot_rna
     
 # Map the indexes of samples between different expression matrices.
-# Those without a match will have None as a value
 def mapCorrespondingIndices(names1, names2):
     id_map = [None]*len(names1)
     for name in set(names1) & set(names2):
         id_map[names1.index(name)] = names2.index(name)
     return id_map
-
-# Calculate the change in mutual information between a target and a
-# TF with respect to miRNA expression. 
-def deltaMI(mirexp,tfexp,texp,indexmap):
-    pass
 
 # Calculate the mutual information between two vectors
 def mutualInformation(X,Y):
@@ -174,25 +189,25 @@ def mutualInformation(X,Y):
 
 # -------- MAIN / TESTING ------------------------------------------------------
 
-# path
-p = "/home/axolotl/"
-COAD_mir = "/home/axolotl/Data/ExpressionMatrices/COAD_20140416_miRNASeq.txt"
-COAD_rna = "/home/axolotl/Data/ExpressionMatrices/COAD_20140416_RNASeqV2.txt"
-
 # List of miRNAs to test
-mtflist = getMirList(p+"Code/mirlist.txt")
+mtflist = getMirList(files.mirlist)
 
 # Unpack dictionaries containing {tf:[target]} and {mir:[target]} interactions
-tfdict = unpickle(p+"Data/TFtargetInteractions/s0.8/TCGA_COAD_DNase_TF_target_mapping.pkl")
+tfdict = unpickle(files.rnapkl)
 mirdict = trimInteractions(mtflist,
-                           unpickle(p+"Data/conserved_site_targets_cs_0.0_hsa.pkl"))
+                           unpickle(files.mirpkl))
 
+# Find double interactions
 double_interactions = getDoubleInteractions(mtflist,mirdict,tfdict)
 
 # miRNA and mRNA expression matrices
-mirfile, rnafile = filterExpressionFiles(COAD_mir,COAD_rna)
+mirfile, rnafile = filterExpressionFiles(files.mirdata, files.rnadata)
 mirfile = open(mirfile, 'r')
 rnafile= open(rnafile, 'r')
+
+# Open output file
+outfile = files.outdir + "MIDI_result.txt"
+o = open(outfile, 'w')
 
 # Get sample names from both expression matrices
 mir_samples = getSampleNames(mirfile)
@@ -211,8 +226,8 @@ for mir, interactions in double_interactions.iteritems():
     # Find expression outliers and their IDs
     mirexp = expression[mir]
     if not mirexp:
-       print "No expression data for", mir
-       continue
+        o.write("\n" + mir + "\nMISSING MIR EXPRESSION DATA.\n")
+        continue
     top, bot = selectOutliers(mirexp)
     top_id, bot_id = getIndices(top, mirexp), getIndices(bot, mirexp)
 
@@ -222,6 +237,7 @@ for mir, interactions in double_interactions.iteritems():
     for (tf, t) in interactions:
         if tf == t:
             continue
+        o.write(" ".join([mir,tf,t])+"\n")
         try:
             top_tf, bot_tf = getOutlierCoexpression((top_id,bot_id),
                                                     expression[tf],
@@ -230,10 +246,11 @@ for mir, interactions in double_interactions.iteritems():
                                                   expression[t],
                                                   id_map)
         except KeyError:
-            print "Missing expression data."
+            o.write("MISSING RNA EXPRESSION DATA.\n")
             continue
         
         top_MI = mutualInformation(top_tf, top_t)
         bot_MI = mutualInformation(bot_tf, bot_t)
     
-        print mir, tf, t, (top_MI - bot_MI)
+        o.write(str(top_MI-bot_MI) + "\n\n")
+o.close()
