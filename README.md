@@ -9,6 +9,5 @@ Most of the scripts contained in this repository were just exploratory ones that
 
 
 ### PENDING ###
-* While the functions in `MI_DoubleInteraction` have already been tested, I still need to implement an argument parser and a main body to have it run for various datasets.
 * Many of the functions I wrote will be reused when implementing `MI_IndirectInteraction`, so I'll probably move those to a separate module.
 * I still need to come up with a good way to visualize the data produced by the scripts
