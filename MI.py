@@ -1,3 +1,7 @@
+
+# This file contains argument parsing and functions to be used both by 
+# DoubleInteractions and IndirectInteractions, and is imported by both of them.
+
 # -------- Argument Parsing ----------------------------------------------------
 # If you're reading through this code, skip this part. It's just storing file-
 # names in the relevant variables.
@@ -18,12 +22,20 @@ parser.add_option("--outdir", dest="outdir",
 (files, args) = parser.parse_args()
 
 
+# -------- Imports -------------------------------------------------------------
+from itertools import izip
+import cPickle as pickle
+from scipy.stats.kde import gaussian_kde
+from scipy.stats import entropy, scoreatpercentile
+
+
 # -------- Function Definitions ------------------------------------------------
 
 # extract a dictionary from a .pkl
 def unpickle(pklfile):
     f = open(pklfile, 'rb')
     pkl = pickle.load(f)
+    f.close()
     return pkl
 
 # the two expression files (mir and rna) will rarely have exactly the same
@@ -98,32 +110,6 @@ def selectOutliers(expression):
 # Find indices of a list of values from a line in expression matrix
 def getIndices(values, expr):
     return [ expr.index(val) for val in values ]
-
-# Map the names of targets and transcription factors to lists of their
-# expression data
-def getExpressionData(mirfile, rnafile, interactions):
-    # Set file pointers to beginning of data
-    rnafile.seek(0)
-    mirfile.seek(0)
-    rnafile.readline()
-    mirfile.readline()
-    # Initialize dictionary with targets and tfs
-    targets = dict()
-    for mir, pairs in interactions.iteritems():
-        targets[mir] = []
-        for pair in pairs:
-            targets[pair[0]], targets[pair[1]] = [], []
-    # Find RNA expression data
-    for line in rnafile:
-        line = line.strip().split()
-        if proteinName(line[0]) in targets:
-            targets[proteinName(line[0])] = map(float,line[1:])
-    # Find miR expression data
-    for line in mirfile:
-        line = line.strip().split()
-        if line[0] in targets:
-            targets[line[0]] = map(float,line[1:])
-    return targets
 
 # If the expression values for a compound consists entirely of zeroes, it will 
 # be impossible to use gaussian_kde to infer its probability distribution.
