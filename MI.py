@@ -99,8 +99,8 @@ def getSampleNames(f):
 # Find the individuals who have comparatively high and low expression
 # of a specific mirna, two lists of values
 def selectOutliers(expression):
-    top_cutoff = scoreatpercentile(expression, 80)
-    bottom_cutoff = scoreatpercentile(expression, 20)
+    top_cutoff = scoreatpercentile(expression, 70)
+    bottom_cutoff = scoreatpercentile(expression, 30)
     top = [ val for val in expression
             if val > top_cutoff ]
     bot = [ val for val in expression
@@ -114,10 +114,10 @@ def getIndices(values, expr):
 # If the expression values for a compound consists entirely of zeroes, it will 
 # be impossible to use gaussian_kde to infer its probability distribution.
 # Use this function to filter out those instances
-def notExpressed(expr):
-    if len(set(expr)) == 1:
-        return True
-    return False
+def isExpressed(expr):
+    if len(set(expr)) <= 1:
+        return False
+    return True
 
 def proteinName(name):
     return name.split('|')[0]
