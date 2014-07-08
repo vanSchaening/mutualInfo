@@ -209,7 +209,7 @@ mirfile = open(mirfile, 'r')
 rnafile= open(rnafile, 'r')
 
 # Open output file
-outfile = files.outdir + "MIDI_result.txt"
+outfile = files.outdir + "MI_double_results.txt"
 o = open(outfile, 'w')
 
 # Get sample names from both expression matrices
@@ -240,7 +240,7 @@ for mir, interactions in double_interactions.iteritems():
     for (tf, t) in interactions:
         if tf == t:
             continue
-        o.write(" ".join([mir,tf,t])+"\n")
+        o.write("\t".join([mir,tf,t])+"\t")
         try:
             top_tf, bot_tf = getOutlierCoexpression((top_id,bot_id),
                                                     expression[tf],
@@ -255,5 +255,5 @@ for mir, interactions in double_interactions.iteritems():
         top_MI = mutualInformation(top_tf, top_t)
         bot_MI = mutualInformation(bot_tf, bot_t)
     
-        o.write(str(top_MI-bot_MI) + "\n\n")
+        o.write(str(top_MI-bot_MI) + "\n")
 o.close()
