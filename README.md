@@ -1,4 +1,4 @@
-Most of the scripts contained in this repository were just exploratory ones that I wrote while getting familiar with the project data. Currently, the important (read: remotely useful) ones are `MI_DoubleInteraction.py` and `MI_IndirectInteraction.py`. Both of them receive the following items:
+Scripts for calculating the Mutual Information for miRNAs and their targets. `MI.py` contains general functions used by `MI_DoubleInteraction.py` and `MI_IndirectInteraction.py`, which calculate the MI for different cases (see below). Both of them receive the following items:
 * `.pkl`s containing interactions between miRNAs and their direct targets, and interactions between gene products
 * Matrices containing expression data for both miRNAs and mRNA in a specific type of cancer tissue.
 * A file containing the name of a miRNA in each line
