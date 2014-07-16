@@ -1,14 +1,12 @@
-
-# This file contains argument parsing and functions to be used both by 
-# DoubleInteractions and IndirectInteractions, and is imported by both of them.
+import cPickle as pickle
+from tempfile import NamedTemporaryFile
+from itertools import izip
+from scipy.stats import entropy, scoreatpercentile 
+from scipy.stats.kde import gaussian_kde
 
 # -------- Argument Parsing ----------------------------------------------------
-# If you're reading through this code, skip this part. It's just storing file-
-# names in the relevant variables.
 from optparse import OptionParser
 parser = OptionParser()
-parser.add_option("--mirlist",dest="mirlist",
-                  help="plain text file with the name of a miRNA in each line.")
 parser.add_option("--mirpkl",dest="mirpkl",
                   help="pickle with {miR:target} interactions.")
 parser.add_option("--rnapkl",dest="rnapkl",
@@ -19,23 +17,16 @@ parser.add_option("--rnadata",dest="rnadata",
                   help="expression matrix for RNA transcripts in a specific tissue. In the same format as <mirdata>.")
 parser.add_option("--outdir", dest="outdir",
                   help="Directory where result files will be written.")
+parser.add_option("--mirlist",dest="mirlist",
+                  help="(optional) plain text file with the name of a miRNA in each line.")
 (files, args) = parser.parse_args()
 
+# -------- Functions -----------------------------------------------------------
 
-# -------- Imports -------------------------------------------------------------
-from itertools import izip
-import cPickle as pickle
-from scipy.stats.kde import gaussian_kde
-from scipy.stats import entropy, scoreatpercentile
-
-
-# -------- Function Definitions ------------------------------------------------
-
-# extract a dictionary from a .pkl
+# extract an object from a pickle
 def unpickle(pklfile):
     f = open(pklfile, 'rb')
     pkl = pickle.load(f)
-    f.close()
     return pkl
 
 # the two expression files (mir and rna) will rarely have exactly the same
@@ -54,9 +45,7 @@ def filterExpressionFiles(mirfile,rnafile):
     rna.seek(0)
     rna.readline()
 
-    mir_file = mirfile.strip(".txt") + (".filtered.txt")
-    rna_file = rnafile.strip(".txt") + (".filtered.txt")
-    mir_out, rna_out = open(mir_file, 'w'), open(rna_file, 'w')
+    mir_out, rna_out = NamedTemporaryFile(), NamedTemporaryFile()
                
     mir_out.write("\t".join([mir_samples[i] for i in mir_indices])+"\n")
     rna_out.write("\t".join([rna_samples[i] for i in rna_indices])+"\n")
@@ -67,27 +56,8 @@ def filterExpressionFiles(mirfile,rnafile):
             out = [line[0]]
             out.extend([ line[i+1] for i in ids ])
             o.write("\t".join(out)+"\n")
-        f.close()
-        o.close()
-    return mir_file, rna_file
-
-# retrieve list of miR or TF from file
-def getMirList(mtffile):
-    f = open(mtffile, 'r')
-    mtflist = [ line.strip() for line in f ]
-    f.close()
-    return mtflist
-
-# Get a list of all direct targets of a group of miRs or TFs
-def getTargetsList(mtflist, interactions):
-    mylist = list(set(mtflist) & set(interactions.keys()))
-    return [ target for name in mylist for target in interactions[name] ]
-
-# receive a list of miRs or TFs (mtflist) and a dict of target interactions
-# return interactions for members of mtflist
-def trimInteractions(mtflist, interactions):
-    mylist = list(set(mtflist) & set(interactions.keys()))
-    return dict( (mtf,interactions[mtf]) for mtf in mylist )
+        o.seek(0)
+    return mir_out, rna_out
 
 # Get the names of samples in expression matrix. The second line 
 # removes the barcode information after the sample number to 
@@ -96,8 +66,52 @@ def getSampleNames(f):
     columns = f.readline().strip().split()
     return [ name[0:15] for name in columns ]
 
+# Find indices of a list of values from a line in expression matrix
+def getIndices(values, expr):
+    return [ expr.index(val) for val in values ]
+
+# Map the indexes of samples between different expression matrices.
+def mapCorrespondingIndices(names1, names2):
+    id_map = [None]*len(names1)
+    for name in set(names1) & set(names2):
+        id_map[names1.index(name)] = names2.index(name)
+    return id_map
+
+def proteinName(name):
+    return name.split('|')[0]
+
+# Map the names of targets and transcription factors to lists of their
+# expression data
+def getExpressionData(mirfile, rnafile, interactions):
+    # Set file pointers to beginning of data
+    rnafile.seek(0)
+    mirfile.seek(0)
+    rnafile.readline()
+    mirfile.readline()
+    # Initialize dictionary with targets and tfs
+    targets = dict()
+    for mir, pairs in interactions.iteritems():
+        targets[mir] = []
+        for pair in pairs:
+            targets[pair[0]], targets[pair[1]] = [], []
+    # Find RNA expression data
+    for line in rnafile:
+        line = line.strip().split()
+        if proteinName(line[0]) in targets:
+            targets[proteinName(line[0])] = map(float,line[1:])
+    # Find miR expression data
+    for line in mirfile:
+        line = line.strip().split()
+        if line[0] in targets:
+            targets[line[0]] = map(float,line[1:])
+    return targets
+
+# Is the target expressed?
+def isExpressed(expr):
+    return not(not expr or len(set(expr))==1)
+
 # Find the individuals who have comparatively high and low expression
-# of a specific mirna, two lists of values
+# of a specific product, two lists of values
 def selectOutliers(expression):
     top_cutoff = scoreatpercentile(expression, 70)
     bottom_cutoff = scoreatpercentile(expression, 30)
@@ -107,34 +121,12 @@ def selectOutliers(expression):
             if val < bottom_cutoff ]
     return top, bot
 
-# Find indices of a list of values from a line in expression matrix
-def getIndices(values, expr):
-    return [ expr.index(val) for val in values ]
-
-# If the expression values for a compound consists entirely of zeroes, it will 
-# be impossible to use gaussian_kde to infer its probability distribution.
-# Use this function to filter out those instances
-def isExpressed(expr):
-    if len(set(expr)) <= 1:
-        return False
-    return True
-
-def proteinName(name):
-    return name.split('|')[0]
-
 # Once miRNA outliers are identified, find those individuals expression
 # of a given TF or target
 def getOutlierCoexpression(outlier_ids,exp,id_map):    
     top_rna = [ exp[id_map[i]] for i in outlier_ids[0] if id_map[i] ]
     bot_rna = [ exp[id_map[i]] for i in outlier_ids[1] if id_map[i] ]
     return top_rna, bot_rna
-    
-# Map the indexes of samples between different expression matrices.
-def mapCorrespondingIndices(names1, names2):
-    id_map = [None]*len(names1)
-    for name in set(names1) & set(names2):
-        id_map[names1.index(name)] = names2.index(name)
-    return id_map
 
 # Calculate the mutual information between two vectors
 def mutualInformation(X,Y):
@@ -150,3 +142,30 @@ def mutualInformation(X,Y):
     # Calculate and return mutual information between X and Y
     MI = sX + sY - sXY
     return MI
+
+
+# -------- MAIN / TESTING ------------------------------------------------------
+
+# Unpack dictionaries of interactions: {mir:[targets]} and {rna:[targets]}
+mirdict = unpickle(files.mirpkl)
+tfdict = unpickle(files.rnapkl)
+
+# Filter dictionary of miR interactions using mirlist, if provided
+if files.mirlist:
+    f = open(files.mirlist)
+    mirlist = [ line.strip() for line in f ]
+    mirdict = dict( (mir,targets) 
+                    for mir, targets in mirdict.iteritems()
+                    if mir in mirlist)
+    f.close()
+
+# Filter miRNA and mRNA expression matrices for shared samples
+mirfile, rnafile = filterExpressionFiles(files.mirdata, files.rnadata)
+
+# Get sample names from both expression matrices
+mir_samples = getSampleNames(mirfile)
+rna_samples = getSampleNames(rnafile)
+
+# Map the sample columns in the mir expression file 
+# to those in the rna expression 
+id_map = mapCorrespondingIndices(mir_samples,rna_samples)
