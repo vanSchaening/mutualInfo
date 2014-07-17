@@ -1,105 +1,125 @@
-# Import functions. Argument parsing occurs at import.
-# (files, args) = parser.parse_args()
 from MI import *
 
-
-# -------- Function Definitions ------------------------------------------------
-
-# Assumes that the mirdict has already been trimmed
-def getIndirectInteractions(mirdict,tfdict):
-    indirect = dict()
-    for mir, rnas in mirdict.iteritems():
-        mir = mir.lower()
-        indirect[mir] = dict()
-        for rna, targets in tfdict.iteritems():
-            indirect[mir][rna] = targets
-    return indirect
-
-def flipDictionary(interactions):
+def flipInteractions(interactions):
     flipped = dict()
-    for mir, mrnas in interactions.iteritems():
-        for mrna, targets in mrnas.iteritems():
-            if not targets:
-                continue
-            try:
-                flipped[mrna].extend([ (mir,target) 
-                                       for target in targets ])
-            except KeyError:
-                flipped[mrna] = [ (mir,target)
-                                  for target in targets ]
+    for mir, pairs in interactions.iteritems():
+        for (tf, target) in pairs:
+            if tf not in flipped:
+#                flipped[tf] = list()
+#            flipped[tf].append((mir,target))
+                flipped[tf] = dict()
+            if mir not in flipped[tf]:
+                flipped[tf][mir] = list()
+            flipped[tf][mir].append(target)
+   #         except KeyError:
+    #            flipped[tf][mir] = [target]
     return flipped
 
-def getExpressionData(mirfile, rnafile, interactions):
-    # Set file pointers to the beginning of the data
-    for f in [mirfile,rnafile]:
-        f.seek(0)
-        f.readline()
-    # Initialize dictionary
-    expression = dict()
-    for tf, pairs in interactions.iteritems():
-        expression[tf] = list()
-        for (mir, target) in pairs:
-            expression[mir], expression[target] = list(), list()
-    # Get RNA expression data
-    for line in rnafile:
-        line = line.strip().split()
-        if proteinName(line[0]) in expression:
-            expression[proteinName(line[0])] = map(float,line[1:])
-    # Get miR expression data
-    for line in mirfile:
-        line = line.strip().split()
-        if line[0] in expression:
-            expression[line[0]] = map(float,line[1:])
-    return expression
+# -------- MAIN ----------------------------------------------------------------
 
-# -------- MAIN / TESTING ------------------------------------------------------
+# ---- Get indirect interactions ----
+indirect_interactions = dict()
+for mir, rnas in mirdict.iteritems():
+    mir = mir.lower()
+    overlap = set(rnas) & set(tfdict.keys())
+    indirect_interactions[mir] = list()
+    for tf in overlap:
+        indirect_interactions[mir].extend([ (tf, target)
+                                            for target in tfdict[tf] 
+                                            if target not in rnas ])
 
-from pprint import pprint
-
-# Get list of miRNAs
-mirlist = getMirList(files.mirlist)
-
-# Unpack dictionaries containing {tf:[target]} and {mir:[target]} interactions
-tfdict = unpickle(files.rnapkl)
-mirdict = trimInteractions(mirlist,
-                           unpickle(files.mirpkl))
-
-# Get indirect interactions {mir:{target:[targets]}}, and write to a pkl
-indirect_interactions = getIndirectInteractions(mirdict,tfdict)
-d = open(files.outdir + "indirect_interactions.pkl",'w')
-pickle.dump(indirect_interactions, d)
-d.close()
-# Flip dictionary into {tf:[(mir,target)]}
-indirect_interactions = flipDictionary(indirect_interactions)
-
-# miRNA and mRNA expression matrices, filtered for shared samples
-mirfile, rnafile = filterExpressionFiles(files.mirdata, files.rnadata)
-mirfile = open(mirfile, 'r')
-rnafile= open(rnafile, 'r')
-
-# Get sample names from both expression matrices
-mir_samples = getSampleNames(mirfile)
-rna_samples = getSampleNames(rnafile)
-
-# Map the sample columns in the mir expression file to those in the
-# rna expression file
-id_map = mapCorrespondingIndices(mir_samples,rna_samples)
-
-expression = getExpressionData(mirfile,rnafile,indirect_interactions)
-expression = dict( (target, exp) 
+# ---- Get expression data ----
+expression = getExpressionData(mirfile, rnafile, indirect_interactions)
+expression = dict( (target, exp)
                    for target, exp in expression.iteritems()
-                   if exp )
+                   if isExpressed(exp))
 
+# ---- Update interaction dictionary, remove parts with missing data ----
+indirect_interactions = dict( (mir, indirect_interactions[mir])
+                              for mir in indirect_interactions.keys()
+                              if mir in expression )
+for mir, interactions in indirect_interactions.iteritems():
+    indirect_interactions[mir] = [ (tf, target) for tf, target in interactions
+                                   if tf in expression and target in expression ]
+
+# ---- Flip the dictionary into {tf:[(mir,target)]} ----
+indirect_interactions = flipInteractions(indirect_interactions)
+
+# ---- DEBUG ----
+#test = indirect_interactions.keys()[7]
+#print indirect_interactions[test]
+
+# ---- Open output file ----
+o = open(files.outdir + "MI_indirect_results.txt", 'w')
+
+# ---- Calculate MI for all (miR,tf,target) interactions ----
 for tf, interactions in indirect_interactions.iteritems():
-    # Find expression outliers and their IDs
-    try:
-        tfexp = expression[tf]
-    except KeyError:
-        print "Missing mRNA expression data for", tf, "\n"
+    
+    tfexp = expression[tf]
+    top_tf, bot_tf = selectOutliers(tfexp)
+    if not (isExpressed(top_tf) and isExpressed(bot_tf)):
         continue
-    if not tfexp:
-        print "Missing mRNA expression data for", tf, "\n"
-        continue
-    top, bot = selectOutliers(tfexp)
-    top_id, bot_id = getIndices(top, tfexp), getIndices(bot, tfexp)
+    top_id, bot_id = getIndices(top_tf,tfexp), getIndices(bot_tf,tfexp)
 
+    for mir, targets in interactions.iteritems():
+        top_mir, bot_mir = getOutlierCoexpression([top_id,bot_id],
+                                                  expression[mir],
+                                                  id_map)
+        if not (isExpressed(top_mir) and isExpressed(bot_mir)):
+            continue
+
+        # Estimate probability distributions for the outliers' mir expression
+        p_top_mir = gaussian_kde(top_mir)
+        p_bot_mir = gaussian_kde(bot_mir)
+
+        # Find the entropies for both
+        s_top_mir = entropy(p_top_mir.evaluate(top_mir))
+        s_bot_mir = entropy(p_bot_mir.evaluate(bot_mir))
+        
+        for target in targets:
+            top_t, bot_t = getOutlierCoexpression([top_id,bot_id],
+                                                  expression[target],
+                                                  id_map)
+            if not (isExpressed(top_t) and isExpressed(bot_t)):
+                continue
+
+            # Estimate probability distributions for the outliers' mir expression
+            p_top_t = gaussian_kde(top_t)
+            p_bot_t = gaussian_kde(bot_t)
+
+            # Find the entropies for both
+            s_top_t = entropy(p_top_t.evaluate(top_t))
+            s_bot_t = entropy(p_bot_t.evaluate(bot_t))
+
+            # Joint probability and joint entropy
+            p_top_joint = gaussian_kde([top_mir,top_t])
+            p_bot_joint = gaussian_kde([bot_mir,bot_t])
+            s_top_joint = entropy(p_top_joint.evaluate([top_mir,top_t]))
+            s_bot_joint = entropy(p_bot_joint.evaluate([bot_mir,bot_t]))
+
+            # Conditional Mutual Information
+            top_MI = s_top_t + s_top_mir - s_top_joint
+            bot_MI = s_bot_t + s_bot_mir - s_bot_joint
+#    for (mir, target) in interactions:
+        # Get expression of mir and t in the outliers
+#        top_mir, bot_mir = getOutlierCoexpression([top_id,bot_id],
+#                                                  expression[mir],
+#                                                  id_map)
+#        if not (isExpressed(top_mir) and isExpressed(bot_mir)):
+#            continue
+#        top_t, bot_t = getOutlierCoexpression([top_id,bot_id],
+#                                              expression[target],
+ #                                             id_map)
+  #      if not (isExpressed(top_t) and isExpressed(bot_t)):
+   #         continue
+    #    # Calculate conditional mutual information
+
+            #at this rate, p_mir is being calculated redundantly. Find
+# a way to estimate the kernel density outside the function and instead
+# just pass the approximated distribution
+#            top_MI = mutualInformation(top_mir, top_t)
+ #           bot_MI = mutualInformation(bot_mir, bot_t)
+
+            o.write("\t".join([mir,tf,target,
+                               str(top_MI - bot_MI)])+"\n")
+o.close()
