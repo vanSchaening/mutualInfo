@@ -1,8 +1,5 @@
 import sys
 
-if len(sys.argv) == 1:
-    exit("Usage:\n\tgetMirlist.py filename1 [filename2 ... filename n]\n\nWill return a list of the mirs expressed in all files.\n")
-
 # Get the list of miRs in an expression matrix
 def getMirsFromFile(exprfile):
     f = open(exprfile, 'r')
@@ -16,12 +13,21 @@ def getMirsFromFile(exprfile):
     f.close()
     return mirlist
 
-# Obtain list of miRs from the first file
-mirlist = getMirsFromFile(sys.argv[1])
-# For every subsequent miR, get a list of miRs, and remove
-# miRs in mirlist that aren't shared with the new list
-for mirfile in sys.argv[2:]:
-    mirlist = set(mirlist) & set(getMirsFromFile(mirfile))
+# ---- Input validation ----
+if len(sys.argv) <= 3 or ("--out" not in sys.argv):
+    exit("Usage:\n\tgetMirlist.py filename1 [filename2 ... filename n] --out outfile\n\nWill return a list of the mirs expressed in all files.\n")
 
-o = open("shared_mirs.txt", 'w')
+# ---- Find and open output file ----
+outpos = sys.argv.index("--out")
+outfile = sys.argv[outpos+1]
+o = open(outfile, 'w')
+
+# ---- Obtain list of miRs ----
+mirlist = set(getMirsFromFile(sys.argv[1]))
+#  For every file after the first one, get a list of miRs, and remove
+#  miRs in the original list that aren't shared with the new list
+for mirfile in sys.argv[2:outpos]:
+    mirlist = mirlist & set(getMirsFromFile(mirfile))
+
 o.write("\n".join(mirlist))
+o.close()
