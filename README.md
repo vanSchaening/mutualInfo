@@ -9,5 +9,5 @@ Scripts for calculating the Mutual Information for miRNAs and their targets. `MI
 
 
 ### PENDING ###
-* Many of the functions I wrote will be reused when implementing `MI_IndirectInteraction`, so I'll probably move those to a separate module.
-* I still need to come up with a good way to visualize the data produced by the scripts
+* Finishing implementation of 'IndirectInteraction' today (17-July-2014)
+* Adding visualization scripts this week
