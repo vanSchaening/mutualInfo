@@ -26,7 +26,6 @@ double_interactions = dict( (mir, pairs)
                             for mir, pairs in double_interactions.iteritems()
                             if pairs )
 
-
 # ---- Get expression data ----
 expression = getExpressionData(mirfile, rnafile, double_interactions)
 expression = dict( (target, exp)
@@ -37,7 +36,6 @@ expression = dict( (target, exp)
 double_interactions = dict( (mir, double_interactions[mir])
                             for mir in double_interactions.keys()
                             if mir in expression )
-
 
 # ---- Open output file ----
 o = open(files.outdir + "MI_double_results.txt", 'w')

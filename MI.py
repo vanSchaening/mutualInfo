@@ -21,6 +21,9 @@ parser.add_option("--mirlist",dest="mirlist",
                   help="(optional) plain text file with the name of a miRNA in each line.")
 (files, args) = parser.parse_args()
 
+if not files.outdir.endswith("/"):
+    files.outdir = files.outdir + "/"
+
 # -------- Functions -----------------------------------------------------------
 
 # extract an object from a pickle
@@ -154,9 +157,9 @@ tfdict = unpickle(files.rnapkl)
 if files.mirlist:
     f = open(files.mirlist)
     mirlist = [ line.strip() for line in f ]
-    mirdict = dict( (mir,targets) 
+    mirdict = dict( (mir.lower(),targets) 
                     for mir, targets in mirdict.iteritems()
-                    if mir in mirlist)
+                    if mir.lower() in mirlist)
     f.close()
 
 # Filter miRNA and mRNA expression matrices for shared samples
