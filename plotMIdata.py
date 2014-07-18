@@ -1,22 +1,41 @@
+# First attempt at visualizing data
+# Receives output from DoubleInteractions or IndirectInteractions
+# Generates a histogram of deltaMI values and
+# Plots the deltaMI for every (mir,TF,t) against correlation(mir, t)
+
+# -------- Argument Parsing ----------------------------------------------------
+from optparse import OptionParser
+parser = OptionParser()
+parser.add_option("--results", dest="MIdata",
+                  help="output from MI scripts.")
+parser.add_option("--correlation", dest="corrfile",
+                  help="matrix of correlations between single miRNAs and mRNAs.")
+parser.add_option("--outdir", dest="outdir",
+                  help="output directory")
+
+(files,args) = parser.parse_args()
+
+if not files.outdir.endswith("/"):
+    files.outdir = files.outdir+"/"
+# ------------------------------------------------------------------------------
+
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 from pprint import pprint
 import cPickle as pickle
-
-# extract a dictionary from a .pkl
-def unpickle(pklfile):
-    f = open(pklfile, 'rb')
-    pkl = pickle.load(f)
-    f.close()
-    return pkl
-
-MIdata = "/home/axolotl/Results/MI_double_results.txt"
-interactions = "/home/axolotl/Results/double_interaction.pkl"
-corrfile = "/home/axolotl/Data/correlations/COAD_singlemiRNA_vs_mRNA_correlation_247samples.xls"
+from itertools import izip
+import numpy
+ 
+max_p = 0.05
+fname = files.MIdata.split("/")[-1]
+outfile = files.outdir + fname.strip(".txt") + "_with_corr.txt"
 
 # Read data from MIdata and store it in a dict
-# {(mir,tf,t):(MI,mir-t correlation)}
+# {(mir,tf,t):(MI, correlation(mir,t))}
 MI = dict()
-f = open(MIdata,'r')
+f = open(files.MIdata,'r')
 for line in f:
     # Get line and MI value, if it exists
     line = line.strip().split()
@@ -32,7 +51,7 @@ f.close()
 
 # Get names of miRs in correlation file and the id's of the ones that 
 # appear in the results
-f = open(corrfile, 'r')
+f = open(files.corrfile, 'r')
 names = f.readline().strip().split()
 names = [ name.strip('"').lstrip('"') for name in names ]
 ids = [ names.index(mir) for mir in MI.keys() ]
@@ -47,19 +66,45 @@ for line in f:
             if mrna == target:
                 MI[mir][(tf,target)] = (MI[mir][(tf,target)][0],float(line[i+1]))
 
-MI = zip(*[ (mi, correlation) for mir, interactions in MI.iteritems()
-            for interaction,(mi,correlation) in interactions.iteritems() ])
+# -------- XY-SCATTER - MI vs correlation --------------------------------------
+
+# Make a list of MI and a list of correlations to pass to scatter()
+# At the same time, store information in outfile
+MI_new = [] 
+pairs = []
+o = open(outfile, 'w')
+for mir, interactions in MI.iteritems():
+    for (tf, t), (mi, corr) in interactions.iteritems():
+        MI_new.append((mi,corr))
+        pairs.append((mir,tf,t))
+        o.write("\t".join([mir,tf,t,
+                           str(mi),str(corr)])+"\n")
+o.close()
+MI = zip(*MI_new)
+MI_new = []
 
 plt.scatter(MI[0],MI[1])
 plt.xlabel("Change in MI between TF and target, with respect to miR.")
 plt.ylabel("Correlation between miR and target.")
-plt.savefig("MI_vs_correlation.png")
-
+plt.savefig(files.outdir + fname.strip(".txt") + "_vs_correlation.png")
 
 exit()
 
+# -------- PROBABILITY DISTRIBUTION --------------------------------------------
 
-# Plot a simple histogram to visualize the distribution
-n, bins, patches = plt.hist(MI[0],35)
-plt.savefig("MI_histogram.png")
+from scipy.stats import gaussian_kde
+from mpl_toolkits.mplot3d import Axes3D
+
+# Use gaussian kde to approximate the probability distribution
+distribution = gaussian_kde([MI[0],MI[1]])
+P = [ distribution.evaluate([m,c]) 
+      for (m, c) in izip(MI[0],MI[1]) ]
+
+# Plot points in a 3d plot, where the vertical value is the probability
+fig = plt.figure()
+ax = Axes3D(fig)
+ax.scatter(MI[0], MI[1], P)
+plt.savefig(files.outdir+fname.strip(".txt")+"_vs_correlation_dist.png")
+
+
 
