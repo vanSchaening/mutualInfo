@@ -9,8 +9,3 @@ Scripts for calculating the Mutual Information for miRNAs and their targets. `MI
 
 ### NOTES ###
 I implemented `IndirectInteraction` but it currently takes too long to run. In part, it's unavoidable, since it evaluates several times the number of interactions evaluated by `DoubleInteraction`. However, it's also taking a really long time because of redundancies in calculating the Mutual Information. I am calculating the probability distributions and the entropy from within the loop, instead of using the function, as an attempt to solve this problem, but the last time I tried to run it, it still took over an hour for the COAD dataset.
-
-
-### PENDING ###
-* Finishing implementation of 'IndirectInteraction' today (17-July-2014)
-* Adding visualization scripts this week
