@@ -105,8 +105,8 @@ def getExpressionData(mirfile, rnafile, interactions):
     # Find miR expression data
     for line in mirfile:
         line = line.strip().split()
-        if line[0] in targets:
-            targets[line[0]] = map(float,line[1:])
+        if line[0].lower() in targets:
+            targets[line[0].lower()] = map(float,line[1:])
     return targets
 
 # Is the target expressed?
