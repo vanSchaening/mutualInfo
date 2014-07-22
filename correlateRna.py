@@ -16,13 +16,13 @@ def getExpression(line):
     return name, expr
 
 # Set file pointers at the beginning of data
-bufsize = len(f.readline()) * 128
 sup.readline()
+f.readline()
 data_ptr = f.tell()
 
 # Open output files
-o = open(outfile,'w',bufsize)
-p = open(pvals, 'w',bufsize)
+o = open(outfile,'w')
+p = open(pvals, 'w')
 
 # Get RNA names
 names = [ line.strip().split()[0] for line in f ]
@@ -35,26 +35,39 @@ p.write("\t".join(names)+"\n")
 
 # Get correlation between RNA in infile and write them to outfile,
 # Simultaneously write corresponding p values to file.
-for expr1 in f:
-    gene1, expr1 = getExpression(expr1)
+line = f.readline()
+while line != '':
+    gene1, expr1 = getExpression(line)
     oline = [ gene1 ]
     pline = [ gene1 ]
+    
+    olist, plist = [], []
+
     for expr2 in sup:
         gene2, expr2 = getExpression(expr2)
         corr,prob = pearsonr(expr1,expr2)
-        oline.append(str(corr))
-        pline.append(str(prob))
+        olist.append(str(corr))
+        plist.append(str(prob))
+  
+    # Matrix is symmetrical. Use placeholders on left triangles to
+    # to avoid redundant computations
+    filler = ["-1"]*(len(names)-len(oline))
+    oline.extend(filler)
+    pline.extend(filler)
 
+    # Write calculated  correlations
+    oline.extend(olist)
+    pline.extend(plist)
+    
     o.write("\t".join(oline)+"\n")
     p.write("\t".join(pline)+"\n")
-
+    
     # Set sup's pointer back in place
-    sup.seek(data_ptr)
-
-# I'm currently doing a lot of redundant computation:
-    # Each correlation is being computed twice, since the result is 
-    # a symmetric matrix. 
+    sup.seek(data_ptr,0)
+    line = f.readline()
+    data_ptr = f.tell()
 
 f.close()
 o.close()
+
 
