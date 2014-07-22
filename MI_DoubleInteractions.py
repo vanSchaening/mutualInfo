@@ -37,9 +37,6 @@ double_interactions = dict( (mir, double_interactions[mir])
                             for mir in double_interactions.keys()
                             if mir in expression )
 
-print double_interactions.keys()
-exit()
-
 # ---- Open output file ----
 o = open(files.outdir + "MI_double_results.txt", 'w')
 
