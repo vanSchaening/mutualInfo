@@ -54,6 +54,7 @@ f.close()
 f = open(files.corrfile, 'r')
 names = f.readline().strip().split()
 names = [ name.strip('"').lstrip('"') for name in names ]
+names = [ name.lower() for name in names ]
 ids = [ names.index(mir) for mir in MI.keys() ]
 
 # Store correlation data in the dictionary
