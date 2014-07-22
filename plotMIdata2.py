@@ -19,6 +19,9 @@ if not files.outdir.endswith("/"):
     files.outdir = files.outdir+"/"
 # ------------------------------------------------------------------------------
 
+def getName(word):
+    return word.split("|")[0]
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -30,7 +33,8 @@ import numpy
  
 max_p = 0.05
 fname = files.MIdata.split("/")[-1]
-outfile = outdir + fname.strip(".txt") + "_RNA_corr.txt"
+outfile = files.outdir + fname.strip(".txt") + "_RNA_corr.txt"
+
 # Read data from MIdata and store it in a dict
 # {(mir,tf,t):(MI, correlation(tf,t))}
 # { mir: {(tf,t):(MI,corr)} }
@@ -47,24 +51,25 @@ for line in f:
         MI[interaction] = (val,0)
 f.close()
 
-# Get names of mRNAs in correlation file and a list of transcription factors
-names = f.readline().strip().split()
-names = [ name.strip('"').lstrip('"') for name in names ]
-tfs = set([ tf for (mir,tf,t) in MI ])
-
 # Open files
 f = open(files.corrfile, 'r')
 o = open(outfile, 'w')
 
+# Get names of mRNAs in correlation file and a list of transcription factors
+names = f.readline().strip().split()
+tfs = set([ tf for (mir,tf,t) in MI ])
+
 # Find tf-t correlations for each interaction, write results to outfile
 for line in f:
     line = line.strip().split()
-    if not line[0] in tfs:
+    if not getName(line[0]) in tfs:
         continue
     for (mir,tf,t) in MI:
-        if tf == line[0]:
+        if tf == getName(line[0]):
             mutualinfo = MI[(mir,tf,t)][0]
-            corr = line[names.index(target)+1]
+            corr = line[names.index(t)+1]
+            if corr == "nan" or corr == "-2":
+                corr = -2
             MI[(mir,tf,t)] = (mutualinfo,float(corr))
             o.write("\t".join([mir,tf,t,str(mutualinfo),corr])+"\n")
 o.close()
@@ -73,8 +78,9 @@ o.close()
 
 # Make a list of MI and a list of correlations to pass to scatter()
 # At the same time, store information in outfile
-MI = [(mi,corr) for interaction, (mi, corr) in MI.iteritems()]                  
+MI = [ values for interaction, values in MI.iteritems()]                  
 MI = zip(*MI)
+
 
 plt.scatter(MI[0],MI[1])
 plt.xlabel("Change in MI between TF and target, with respect to miR.")

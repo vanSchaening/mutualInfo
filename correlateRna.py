@@ -51,7 +51,7 @@ while line != '':
   
     # Matrix is symmetrical. Use placeholders on left triangles to
     # to avoid redundant computations
-    filler = ["-1"]*(len(names)-len(oline))
+    filler = ["-2"]*(len(names)-len(olist))
     oline.extend(filler)
     pline.extend(filler)
 
