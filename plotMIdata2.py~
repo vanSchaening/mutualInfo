@@ -54,9 +54,6 @@ f.close()
 # Open files
 f = open(files.corrfile, 'r')
 o = open(outfile, 'w')
-o.write("\t".join(['miRNA','TF','target',
-                   'TF-target deltaMI',
-                   'TF-target correlation'])+'\n')
 
 # Get names of mRNAs in correlation file and a list of transcription factors
 names = f.readline().strip().split()

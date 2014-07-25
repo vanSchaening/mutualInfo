@@ -74,9 +74,6 @@ for line in f:
 MI_new = [] 
 pairs = []
 o = open(outfile, 'w')
-o.write("\t".join(['miRNA','TF','target',
-                   'TF-target deltaMI',
-                   'mir-target correlation'])+'\n')
 for mir, interactions in MI.iteritems():
     for (tf, t), (mi, corr) in interactions.iteritems():
         MI_new.append((mi,corr))
