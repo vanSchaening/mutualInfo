@@ -5,6 +5,9 @@ infile = sys.argv[1]#"/home/axolotl/Data/ExpressionMatrices/COAD_20140416_RNASeq
 outfile = sys.argv[2]#"/home/axolotl/Data/mRNAcorrelations/COAD_20140616-mRNA.txt"
 pvals = sys.argv[3]#"/home/axolotl/Data/mRNAcorrelations/COAD_20140616-pVals.txt"
 
+if len(sys.argv) != 4:
+    print "Usage:\n\t$ python correlateRna.py <input file> <correlation output file> <pvalues output file>\n"
+
 # Open input file twice
 f = open(infile, 'r')
 sup = open(infile, 'r')
@@ -69,5 +72,5 @@ while line != '':
 
 f.close()
 o.close()
-
+p.close()
 

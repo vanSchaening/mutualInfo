@@ -1,7 +1,7 @@
 # First attempt at visualizing data
 # Receives output from DoubleInteractions or IndirectInteractions
 # Generates a histogram of deltaMI values and
-# Plots the deltaMI for every (mir,TF,t) against correlation(mir, t)
+# Plots the deltaMI for every (mir,TF,t) against correlation(tf, t)
 
 # -------- Argument Parsing ----------------------------------------------------
 from optparse import OptionParser
@@ -67,16 +67,21 @@ for line in f:
     line = line.strip().split()
     if not getName(line[0]) in tfs:
         continue
-    for (mir,tf,t) in MI:
-        if tf == getName(line[0]):
-            mutualinfo = MI[(mir,tf,t)][0]
+    for (mir,tf,t),(mutualinfo,c) in MI.iteritems():
+        if c != -2:
+            continue
+        rna = getName(line[0])
+        if not rna in [tf, t]:
+            continue
+        if tf == rna:
             corr = line[names.index(t)+1]
-            if corr == "nan" or corr == "-2":
-                continue
-            MI[(mir,tf,t)] = (mutualinfo,float(corr))
-            o.write("\t".join([mir,tf,t,str(mutualinfo),corr])+"\n")
+        if t == rna:
+            corr = line[names.index(tf)+1]
+        if corr == "nan" or corr == "-2":
+            continue
+        MI[(mir,tf,t)] = (mutualinfo,float(corr))
+        o.write("\t".join([mir,tf,t,str(mutualinfo),corr])+"\n")
 o.close()
-
 
 # -------- XY-SCATTER - MI vs correlation --------------------------------------
 
