@@ -1,3 +1,4 @@
+# Get the correlation for all pairs of RNAs in a given expression matrix
 from scipy.stats import pearsonr
 import sys
 
